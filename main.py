@@ -1,4 +1,6 @@
 """
+main.py
+-------
 Точка входа LoL Pipeline.
 
 Примеры запуска:
@@ -15,26 +17,10 @@ import argparse
 import logging
 import sys
 import time
-import pandas as pd
 from pathlib import Path
-from load.data_quality import DataQualityChecker
-from load.duckdb_marts import build_marts
-from load.postgres_loader import PostgresLoader, PgConfig
 
 
-def setup_logging(log_file: str) -> None:
-    
-    """
-    Настраивает систему логирования.
-
-    Создаёт два обработчика:
-      - вывод в stdout (консоль) с уровнем INFO,
-      - запись в файл с кодировкой UTF-8.
-
-    Args:
-        log_file : str: Путь к файлу, в который будут сохраняться логи.
-    """
-    
+def setup_logging(log_file: str):
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s  %(levelname)-8s  %(message)s",
@@ -47,17 +33,6 @@ def setup_logging(log_file: str) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    
-    """
-    Разбирает аргументы командной строки.
-
-    Определяет параметры для управления сбором данных, API-ключом,
-    этапами пайплайна и загрузкой в PostgreSQL.
-
-    Returns:
-        argparse.Namespace: Объект с атрибутами, соответствующими переданным аргументам.
-    """
-    
     parser = argparse.ArgumentParser(
         prog="lol-pipeline",
         description="League of Legends ETL: Challenger/GM/Master → Parquet → DuckDB",
@@ -125,7 +100,7 @@ def parse_args() -> argparse.Namespace:
         help="Принудительно перекачать champions/items (игнорировать кэш)",
     )
 
-    # PostgreSQL
+    # ── PostgreSQL ────────────────────────────────────────────────────────
     pg = parser.add_argument_group("PostgreSQL")
     pg.add_argument("--pg-load",       action="store_true",
                     help="Загрузить данные в PostgreSQL после пайплайна")
@@ -137,33 +112,17 @@ def parse_args() -> argparse.Namespace:
                     help="Не загружать mart_* таблицы, только raw_*")
     pg.add_argument("--pg-test",       action="store_true",
                     help="Проверить соединение с PostgreSQL и выйти")
-    pg.add_argument("--pg-password",   default=None, metavar="PWD",
+    pg.add_argument("--pg-host",     default=None, metavar="HOST",
+                    help="PG hostname (или env PG_HOST)")
+    pg.add_argument("--pg-port",     default=None, type=int, metavar="PORT",
+                    help="PG port (или env PG_PORT, default 6543)")
+    pg.add_argument("--pg-password", default=None, metavar="PWD",
                     help="Пароль PG (или env PG_PASSWORD)")
 
     return parser.parse_args()
 
 
-def main() -> None:
-    
-    """
-    Основная функция пайплайна обработки данных LoL.
-
-    Последовательно выполняет этапы ETL:
-      1. Загрузка конфигурации и настройка логирования.
-      2. Extract – сбор данных через Riot API (игроки, матчи, статика).
-      3. Transform – преобразование и очистка данных в Parquet.
-      4. Data Quality – проверка целостности данных.
-      5. Load – построение витрин в DuckDB.
-      6. (опционально) Загрузка в PostgreSQL.
-
-    Управление этапами осуществляется через аргументы командной строки.
-    В случае ошибки конфигурации или критической проблемы выполнение
-    прерывается с кодом возврата 1.
-
-    Raises:
-        SystemExit: При некорректной конфигурации или ошибке подключения к БД.
-    """
-    
+def main():
     args = parse_args()
 
     # Настройки
@@ -186,7 +145,6 @@ def main() -> None:
 
     try:
         settings.validate()
-        
     except ValueError as e:
         log.error("Ошибка конфигурации: %s", e)
         sys.exit(1)
@@ -219,21 +177,23 @@ def main() -> None:
 
         log.info("── EXTRACT ──────────────────────────────────────────────")
 
-        # Справочники
+        # 1. Справочники
         extract_static(settings.raw_dir, force=args.force_static)
 
-        # Игроки
+        # 2. Игроки
         players_df = extract_players(client, settings)
 
-        # Расширение графа (depth > 1)
+        # 3. Расширение графа (depth > 1)
         if settings.depth > 1:
             players_df = expand_players(players_df, client, settings)
 
         # Сохраняем расширенный список (перезаписываем raw)
-        expanded_path = Path(settings.raw_dir) / "players" / "players.parquet"
+        from pathlib import Path as P
+        import pandas as pd
+        expanded_path = P(settings.raw_dir) / "players" / "players.parquet"
         players_df.to_parquet(expanded_path, index=False)
 
-        # Матчи
+        # 4. Матчи
         extract_matches(players_df, client, settings)
     else:
         log.info("── EXTRACT пропущен (--skip-extract) ────────────────────")
@@ -262,12 +222,16 @@ def main() -> None:
     # DATA QUALITY CHECK
     # ──────────────────────────────────────────────────────────────────────
     if not args.skip_transform and not args.pg_load_only:
+        from pathlib import Path as _P
+        import pandas as _pd
+        from load.data_quality import DataQualityChecker
+
         log.info("── DATA QUALITY ─────────────────────────────────────────")
         dq_ok = True
         for fname, tname in [("matches.parquet", "matches"), ("players.parquet", "players")]:
-            path = Path(settings.processed_dir) / fname
+            path = _P(settings.processed_dir) / fname
             if path.exists():
-                df = pd.read_parquet(path)
+                df = _pd.read_parquet(path)
                 report = DataQualityChecker(df, tname).run()
                 for w in report.warnings:
                     log.warning("DQ: %s", w)
@@ -279,6 +243,8 @@ def main() -> None:
             log.warning("DQ: обнаружены проблемы качества — проверьте данные перед использованием")
 
     if not args.skip_marts and not args.pg_load_only:
+        from load.duckdb_marts import build_marts
+
         log.info("── LOAD (DuckDB Marts) ───────────────────────────────────")
         build_marts(settings.processed_dir, settings.duckdb_file)
     else:
@@ -289,9 +255,12 @@ def main() -> None:
     # ──────────────────────────────────────────────────────────────────────
     pg_needed = args.pg_load or args.pg_load_only or args.pg_test
     if pg_needed:
+        from load.postgres_loader import PostgresLoader, PgConfig
+
         pg_cfg = PgConfig.from_env()
-        if args.pg_password:
-            pg_cfg.password = args.pg_password
+        if args.pg_host:     pg_cfg.host     = args.pg_host
+        if args.pg_port:     pg_cfg.port     = args.pg_port
+        if args.pg_password: pg_cfg.password = args.pg_password
 
         loader = PostgresLoader(pg_cfg)
 
