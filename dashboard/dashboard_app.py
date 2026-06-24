@@ -497,7 +497,106 @@ def _normalize_positions(data: dict) -> dict:
     return data
 
 
+def _get_pg_config() -> dict | None:
+    """
+    Читает параметры подключения к PostgreSQL из Streamlit secrets или переменных окружения.
+    Возвращает dict с параметрами или None если ни один источник не настроен.
+
+    Streamlit Cloud: Settings → Secrets → вставить блок [postgres] из secrets.toml.
+    Локально: .streamlit/secrets.toml или переменные окружения PG_HOST / PG_PASSWORD и т.д.
+    """
+    import os
+
+    # Сначала пробуем Streamlit secrets (Streamlit Cloud / локальный secrets.toml)
+    try:
+        sec = st.secrets["postgres"]
+        return {
+            "host":     sec["host"],
+            "port":     int(sec.get("port", 6543)),
+            "dbname":   sec.get("database", "postgres"),
+            "user":     sec["user"],
+            "password": sec["password"],
+            "sslmode":  "require",
+            "connect_timeout": 10,
+        }
+    except (KeyError, FileNotFoundError):
+        pass
+
+    # Fallback: переменные окружения (CI / локальный .env)
+    if os.environ.get("PG_HOST"):
+        return {
+            "host":     os.environ["PG_HOST"],
+            "port":     int(os.environ.get("PG_PORT", 6543)),
+            "dbname":   os.environ.get("PG_DB", "postgres"),
+            "user":     os.environ.get("PG_USER", ""),
+            "password": os.environ.get("PG_PASSWORD", ""),
+            "sslmode":  "require",
+            "connect_timeout": 10,
+        }
+
+    return None
+
+
+def _load_from_supabase(cfg: dict) -> dict[str, pd.DataFrame]:
+    """
+    Читает витрины из PostgreSQL/Supabase через psycopg2.
+    Используется как приоритетный источник на Streamlit Cloud.
+    """
+    import psycopg2
+    import psycopg2.extras
+
+    con = psycopg2.connect(**cfg)
+
+    def q(sql: str) -> pd.DataFrame:
+        with con.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql)
+            rows = cur.fetchall()
+        return pd.DataFrame(rows)
+
+    # Проверяем наличие mart_player_champion_stats
+    with con.cursor() as cur:
+        cur.execute("""
+            SELECT tablename FROM pg_tables
+            WHERE schemaname = 'public'
+              AND tablename = 'mart_player_champion_stats'
+        """)
+        has_champ_stats = cur.fetchone() is not None
+
+    result = {
+        "players":   q("SELECT * FROM mart_player_stats"),
+        "champions": q("SELECT * FROM mart_champion_stats"),
+        "positions": q("SELECT * FROM mart_position_stats"),
+        "timeline":  q("SELECT * FROM mart_match_timeline ORDER BY game_day"),
+        "items":     q("SELECT * FROM mart_item_popularity LIMIT 30"),
+        "player_champions": (
+            q("SELECT * FROM mart_player_champion_stats") if has_champ_stats
+            else pd.DataFrame()
+        ),
+    }
+    con.close()
+    return result
+
+
 def _load_data_impl() -> dict[str, pd.DataFrame]:
+    """
+    Приоритет источников данных:
+      1. Supabase / PostgreSQL  — Streamlit Cloud + prod
+      2. DuckDB локальный файл  — локальная разработка
+      3. Демо-данные            — если ничего не настроено
+    """
+    # ── 1. Supabase ───────────────────────────────────────────────────────
+    cfg = _get_pg_config()
+    if cfg:
+        try:
+            result = _load_from_supabase(cfg)
+            # Проверяем что данные не пустые
+            if not result["players"].empty and not result["champions"].empty:
+                return _normalize_positions(result)
+            st.warning("PostgreSQL подключён, но данные ещё не загружены — запустите ETL.")
+        except Exception as e:
+            st.warning(f"PostgreSQL недоступен ({e}), пробуем локальный DuckDB.")
+
+    # ── 2. Локальный DuckDB ───────────────────────────────────────────────
     db_path = Path("data/lol.duckdb")
     if db_path.exists():
         try:
@@ -510,17 +609,17 @@ def _load_data_impl() -> dict[str, pd.DataFrame]:
                 "positions": con.execute("SELECT * FROM mart_position_stats").df(),
                 "timeline":  con.execute("SELECT * FROM mart_match_timeline ORDER BY game_day").df(),
                 "items":     con.execute("SELECT * FROM mart_item_popularity LIMIT 30").df(),
+                "player_champions": (
+                    con.execute("SELECT * FROM mart_player_champion_stats").df()
+                    if "mart_player_champion_stats" in tables else pd.DataFrame()
+                ),
             }
-            if "mart_player_champion_stats" in tables:
-                result["player_champions"] = con.execute(
-                    "SELECT * FROM mart_player_champion_stats"
-                ).df()
-            else:
-                result["player_champions"] = pd.DataFrame()
+            con.close()
             return _normalize_positions(result)
         except Exception as e:
             st.warning(f"DuckDB недоступен ({e}), используем демо-данные.")
 
+    # ── 3. Демо-данные ────────────────────────────────────────────────────
     return _generate_demo_data()
 
 
@@ -2055,7 +2154,6 @@ def main():
         f'</div>',
         unsafe_allow_html=True,
     )
-
 
 if __name__ == "__main__":
     main()
