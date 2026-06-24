@@ -1,0 +1,106 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# LoL Pipeline — основной конфиг
+# Значения здесь — дефолты; все параметры можно переопределить через CLI-флаги.
+# ─────────────────────────────────────────────────────────────────────────────
+
+api:
+  # Riot API ключ.  Лучше передавать через переменную окружения RIOT_API_KEY,
+  # чтобы не коммитить секрет в репозиторий.
+  key: ""                     # берётся из env RIOT_API_KEY если пусто
+
+  # Лимиты dev-ключа Riot: 20 req/1s, 100 req/2min
+  request_pause: 0.055        # базовая пауза между запросами (сек)
+  rate_limit_pause: 125       # пауза при 429 (сек)
+  retries: 3
+
+collection:
+  region: "euw1"              # сервер лиги/игроков: euw1, na1, kr, br1, …
+  match_region: "europe"      # роутинг матчей:  europe, americas, asia, sea
+  league: "challenger"        # challenger | grandmaster | master
+  queue: "RANKED_SOLO_5x5"    # тип очереди
+  matches_per_player: 30      # матчей на игрока
+  chunk_size: 100             # строк в буфере перед сбросом на диск
+
+  # Глубина графа игроков:
+  #   1 — только игроки из выбранной лиги
+  #   2 — + уникальные игроки из их матчей
+  #   3 — + следующий уровень, и т.д.
+  # ALARM!!!  Каждый уровень экспоненциально увеличивает объём запросов.
+  depth: 1
+
+paths:
+  data_dir: "data"
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  duckdb_file: "data/lol.duckdb"
+  log_file: "etl.log"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Поля матча, которые попадают в обработанный слой (processed/matches).
+# Ключи — имена колонок в итоговом parquet.
+# Значения — dot-path внутри объекта участника из Riot Match v5 API,
+#             либо специальные ключи: __match_id__, __game_*__
+# ─────────────────────────────────────────────────────────────────────────────
+
+match_fields:
+  # Идентификаторы матча
+  match_id:       "__match_id__"
+  game_duration:  "__game_duration__"
+  game_version:   "__game_version__"
+  game_date:      "__game_date__"
+  game_mode:      "__game_mode__"
+
+  # Идентификаторы игрока
+  puuid:          "puuid"
+  summoner_name:  "riotIdGameName"    # summonerName устарел, используем riotIdGameName
+  team_id:        "teamId"
+  team_position:  "teamPosition"
+  role:           "role"
+
+  # Результат
+  win:            "win"
+  kills:          "kills"
+  deaths:         "deaths"
+  assists:        "assists"
+
+  # Экономика / фарм
+  gold_earned:             "goldEarned"
+  minions_killed:          "totalMinionsKilled"
+  neutral_minions_killed:  "neutralMinionsKilled"
+
+  # Урон
+  damage_to_champions:  "totalDamageDealtToChampions"
+  damage_taken:         "totalDamageTaken"
+  healing_done:         "totalHeal"
+
+  # Зрение
+  vision_score:  "visionScore"
+  wards_placed:  "wardsPlaced"
+  wards_killed:  "wardsKilled"
+
+  # Предметы (ID)
+  item0: "item0"
+  item1: "item1"
+  item2: "item2"
+  item3: "item3"
+  item4: "item4"
+  item5: "item5"
+  item6: "item6"
+
+  # Герой
+  champion_name: "championName"
+  champion_id:   "championId"
+
+  # Дополнительная статистика — раскомментировать по необходимости
+  # pentakills:            "pentaKills"
+  # quadrakills:           "quadraKills"
+  # first_blood:           "firstBloodKill"
+  # turret_kills:          "turretKills"
+  # dragon_kills:          "dragonKills"
+  # baron_kills:           "baronKills"
+  # time_spent_living:     "longestTimeSpentLiving"
+  # crowd_control_score:   "timeCCingOthers"
+  # spell1_casts:          "spell1Casts"
+  # spell2_casts:          "spell2Casts"
+  # spell3_casts:          "spell3Casts"
+  # spell4_casts:          "spell4Casts"
