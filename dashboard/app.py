@@ -510,6 +510,14 @@ def _get_pg_config() -> dict | None:
     # Сначала пробуем Streamlit secrets (Streamlit Cloud / локальный secrets.toml)
     try:
         sec = st.secrets["postgres"]
+        # Проверяем что обязательные ключи есть
+        missing = [k for k in ("host", "user", "password") if not sec.get(k)]
+        if missing:
+            st.sidebar.warning(
+                f"⚠️ Streamlit secrets: блок [postgres] найден, "
+                f"но отсутствуют обязательные ключи: {missing}"
+            )
+            return None
         return {
             "host":     sec["host"],
             "port":     int(sec.get("port", 6543)),
@@ -519,8 +527,10 @@ def _get_pg_config() -> dict | None:
             "sslmode":  "require",
             "connect_timeout": 10,
         }
-    except (KeyError, FileNotFoundError):
-        pass
+    except FileNotFoundError:
+        pass   # нет secrets.toml — нормально для env-режима
+    except KeyError:
+        pass   # нет блока [postgres] — переходим к env
 
     # Fallback: переменные окружения (CI / локальный .env)
     if os.environ.get("PG_HOST"):
@@ -562,6 +572,19 @@ def _load_from_supabase(cfg: dict) -> dict[str, pd.DataFrame]:
         """)
         has_champ_stats = cur.fetchone() is not None
 
+    # Проверяем есть ли вообще mart-таблицы
+    with con.cursor() as cur:
+        cur.execute("""
+            SELECT tablename FROM pg_tables
+            WHERE schemaname = 'public'
+              AND tablename LIKE 'mart_%'
+        """)
+        mart_tables = {r[0] for r in cur.fetchall()}
+
+    if not mart_tables:
+        con.close()
+        raise ValueError("mart_* таблицы не найдены — запустите ETL с флагом --pg-load")
+
     result = {
         "players":   q("SELECT * FROM mart_player_stats"),
         "champions": q("SELECT * FROM mart_champion_stats"),
@@ -589,12 +612,21 @@ def _load_data_impl() -> dict[str, pd.DataFrame]:
     if cfg:
         try:
             result = _load_from_supabase(cfg)
-            # Проверяем что данные не пустые
             if not result["players"].empty and not result["champions"].empty:
                 return _normalize_positions(result)
-            st.warning("PostgreSQL подключён, но данные ещё не загружены — запустите ETL.")
+            # Таблицы есть но пустые — ETL не запускался
+            st.sidebar.warning(
+                "⚠️ PostgreSQL подключён, таблицы созданы, но данных нет.\n\n"
+                "Запустите ETL:\n```\npython main.py --pg-load\n```"
+            )
+        except ValueError as e:
+            # mart_* таблиц нет вообще
+            st.sidebar.error(
+                f"❌ PostgreSQL подключён, но {e}\n\n"
+                "Запустите:\n```\npython main.py --pg-load\n```"
+            )
         except Exception as e:
-            st.warning(f"PostgreSQL недоступен ({e}), пробуем локальный DuckDB.")
+            st.sidebar.warning(f"⚠️ PostgreSQL недоступен: {e}")
 
     # ── 2. Локальный DuckDB ───────────────────────────────────────────────
     db_path = Path("data/lol.duckdb")
@@ -617,7 +649,8 @@ def _load_data_impl() -> dict[str, pd.DataFrame]:
             con.close()
             return _normalize_positions(result)
         except Exception as e:
-            st.warning(f"DuckDB недоступен ({e}), используем демо-данные.")
+            st.sidebar.warning(f"⚠️ DuckDB недоступен ({e}), используем демо-данные.")
+
 
     # ── 3. Демо-данные ────────────────────────────────────────────────────
     return _generate_demo_data()
