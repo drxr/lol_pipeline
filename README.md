@@ -132,11 +132,9 @@ lol_pipeline/
 ├── settings.py               # загрузка конфига + env + CLI-оверрайды
 ├── main.py                   # точка входа: ETL + DQ + PG
 ├── requirements.txt
-├── .env.example
-├── .streamlit/config.toml    # тёмная тема
 └── .github/workflows/
-    ├── pipeline.yml          # ежедневный scheduled run + ручной запуск
-    └── dashboard.yml         # CI для dashboard/app.py
+    ├── python-app.yml          # ежедневный scheduled run + ручной запуск
+
 ```
 
 ---
