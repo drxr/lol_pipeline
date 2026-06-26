@@ -6,7 +6,7 @@
 api:
   # Riot API ключ.  Лучше передавать через переменную окружения RIOT_API_KEY,
   # чтобы не коммитить секрет в репозиторий.
-  key: ""                     # берётся из env RIOT_API_KEY если пусто
+  key: ""                     # берётся из env RIOT_API_KEY, если пусто
 
   # Лимиты dev-ключа Riot: 20 req/1s, 100 req/2min
   request_pause: 0.055        # базовая пауза между запросами (сек)
@@ -29,11 +29,11 @@ collection:
   depth: 1
 
 paths:
-  data_dir: "data"
-  raw_dir: "data/raw"
-  processed_dir: "data/processed"
-  duckdb_file: "data/lol.duckdb"
-  log_file: "etl.log"
+  data_dir: "data"  # папка с загруженными данными
+  raw_dir: "data/raw"  # необработанные данные
+  processed_dir: "data/processed"  # обработанные данные
+  duckdb_file: "data/lol.duckdb"  # база данных duckdb (витрины)
+  log_file: "etl.log"  # логи
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Поля матча, которые попадают в обработанный слой (processed/matches).
