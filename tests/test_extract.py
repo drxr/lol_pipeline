@@ -23,9 +23,7 @@ from extract.matches import _load_existing_match_ids, _next_chunk_idx, _flush_bu
 from extract.static_data import extract_static
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # RiotHttpClient
-# ═══════════════════════════════════════════════════════════════════════════
 
 class TestRiotHttpClient:
 
@@ -133,9 +131,7 @@ class TestRiotHttpClient:
         assert first_sleep >= 30
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # extract/matches helpers
-# ═══════════════════════════════════════════════════════════════════════════
 
 class TestMatchHelpers:
 
@@ -162,7 +158,9 @@ class TestMatchHelpers:
         assert ids == {"A", "B", "C", "D"}
 
     def test_load_existing_deduplicates(self, tmp_dirs):
+      
         """Один и тот же match_id в двух чанках — должен вернуться один раз."""
+      
         match_dir = tmp_dirs["raw"] / "matches"
         match_dir.mkdir(exist_ok=True)
         pd.DataFrame({"match_id": ["DUP", "X"]}).to_parquet(
@@ -206,15 +204,15 @@ class TestMatchHelpers:
         assert (match_dir / "chunk_00007.parquet").exists()
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # extract/static_data
-# ═══════════════════════════════════════════════════════════════════════════
 
 class TestExtractStatic:
 
     @patch("extract.static_data.requests.get")
     def test_downloads_when_missing(self, mock_get, tmp_dirs):
+      
         """Скачивает оба файла если отсутствуют."""
+      
         version_resp = MagicMock()
         version_resp.status_code = 200
         version_resp.json.return_value = ["14.1.1", "14.0.1"]
@@ -235,7 +233,9 @@ class TestExtractStatic:
         assert (tmp_dirs["raw"] / "static" / "items.json").exists()
 
     def test_skips_when_both_exist(self, tmp_dirs):
+      
         """Пропускает скачивание если оба файла уже есть."""
+      
         static_dir = tmp_dirs["raw"] / "static"
         static_dir.mkdir(exist_ok=True)
         (static_dir / "champions.json").write_text("{}", encoding="utf-8")
@@ -247,7 +247,9 @@ class TestExtractStatic:
 
     @patch("extract.static_data.requests.get")
     def test_force_redownloads(self, mock_get, tmp_dirs):
+      
         """force=True перекачивает даже если файлы есть."""
+      
         static_dir = tmp_dirs["raw"] / "static"
         static_dir.mkdir(exist_ok=True)
         (static_dir / "champions.json").write_text("{}", encoding="utf-8")
