@@ -18,11 +18,13 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
-# ── Фикстура: временная директория со структурой проекта ──────────────────
+# Фикстура: временная директория со структурой проекта
 
 @pytest.fixture()
 def tmp_dirs(tmp_path):
+    
     """Создаёт временную структуру raw/ и processed/ директорий."""
+    
     raw       = tmp_path / "raw"
     processed = tmp_path / "processed"
     (raw / "matches").mkdir(parents=True)
@@ -32,7 +34,7 @@ def tmp_dirs(tmp_path):
     return {"root": tmp_path, "raw": raw, "processed": processed}
 
 
-# ── Фабрики тестовых данных ───────────────────────────────────────────────
+# Фабрики тестовых данных
 
 def make_participant(
     puuid: str = "puuid-001",
@@ -44,7 +46,9 @@ def make_participant(
     deaths: int = 2,
     assists: int = 5,
 ) -> dict:
+    
     """Минимальный participant-объект из Riot Match v5 API."""
+    
     return {
         "puuid":                    puuid,
         "riotIdGameName":           "TestPlayer",
@@ -76,7 +80,9 @@ def make_match_json(
     n_participants: int = 10,
     game_duration: int = 1800,
 ) -> dict:
+    
     """Минимальный объект матча из Riot Match v5 API."""
+    
     puuids = [f"puuid-{i:03d}" for i in range(n_participants)]
     positions = ["TOP","JUNGLE","MID","BOTTOM","SUPPORT"] * 2
     participants = [
@@ -102,10 +108,12 @@ def make_match_json(
 
 @pytest.fixture()
 def raw_match_parquet(tmp_dirs):
+    
     """
     Создаёт raw/matches/chunk_00000.parquet с 3 тестовыми матчами.
     Возвращает путь к файлу и список match_id.
     """
+    
     match_ids = ["EUW1_001", "EUW1_002", "EUW1_003"]
     rows = [
         {
@@ -122,7 +130,9 @@ def raw_match_parquet(tmp_dirs):
 
 @pytest.fixture()
 def raw_players_parquet(tmp_dirs):
+    
     """Создаёт raw/players/players.parquet с тестовыми игроками."""
+    
     players = [
         {
             "puuid":           f"puuid-{i:03d}",
@@ -151,7 +161,9 @@ def raw_players_parquet(tmp_dirs):
 
 @pytest.fixture()
 def match_fields():
+    
     """Минимальный набор match_fields для тестов трансформации."""
+    
     return {
         "match_id":           "__match_id__",
         "game_duration":      "__game_duration__",
