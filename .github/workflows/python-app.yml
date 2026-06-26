@@ -1,0 +1,103 @@
+name: LoL Pipeline → Supabase
+
+on:
+  schedule:
+    # Каждую ночь в 03:00 UTC
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      league:
+        description: "Лига (challenger / grandmaster / master)"
+        required: false
+        default: "challenger"
+      region:
+        description: "Регион (euw1, na1, kr …)"
+        required: false
+        default: "euw1"
+      matches:
+        description: "Матчей на игрока"
+        required: false
+        default: "20"
+      depth:
+        description: "Глубина графа (осторожно: 2+ = много запросов)"
+        required: false
+        default: "1"
+      pg_load:
+        description: "Загрузить в PostgreSQL? (true/false)"
+        required: false
+        default: "true"
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360   # 6 часов максимум (Riot API медленный)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # ── Кэш данных между запусками ──────────────────────────────────────
+      # Позволяет делать инкрементальные запуски: уже скачанные матчи
+      # не скачиваются повторно (дедупликация по match_id в extract/matches.py)
+      - name: Restore data cache
+        uses: actions/cache@v4
+        with:
+          path: data/
+          key: lol-data-${{ github.ref_name }}-${{ runner.os }}
+          restore-keys: |
+            lol-data-${{ github.ref_name }}-
+            lol-data-
+
+      # ── Extract + Transform + Load (DuckDB) ─────────────────────────────
+      - name: Run ETL pipeline
+        env:
+          RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
+        run: |
+          python main.py \
+            --league  "${{ github.event.inputs.league  || 'challenger' }}" \
+            --region  "${{ github.event.inputs.region  || 'euw1' }}" \
+            --matches "${{ github.event.inputs.matches || '20' }}" \
+            --depth   "${{ github.event.inputs.depth   || '1' }}"
+
+      # ── Загрузка в Supabase PostgreSQL ──────────────────────────────────
+      - name: Load data to Supabase
+        if: ${{ github.event.inputs.pg_load != 'false' }}
+        env:
+          PG_HOST:     ${{ secrets.PG_HOST }}
+          PG_PORT:     ${{ secrets.PG_PORT }}
+          PG_DB:       ${{ secrets.PG_DB }}
+          PG_USER:     ${{ secrets.PG_USER }}
+          PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
+        run: |
+          python main.py \
+            --pg-load-only \
+            --pg-host     "${{ secrets.PG_HOST }}" \
+            --pg-password "${{ secrets.PG_PASSWORD }}"
+
+      # ── Кэш сохраняем всегда (даже при ошибке) ─────────────────────────
+      - name: Save data cache
+        if: always()
+        uses: actions/cache@v4
+        with:
+          path: data/
+          key: lol-data-${{ github.ref_name }}-${{ runner.os }}
+
+      # ── Артефакты для отладки ────────────────────────────────────────────
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lol-pipeline-run-${{ github.run_number }}
+          path: |
+            data/processed/
+            etl.log
+          retention-days: 7
