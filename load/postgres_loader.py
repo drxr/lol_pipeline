@@ -32,11 +32,11 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class PgConfig:
-    host:     str = "aws-0-eu-west-1.pooler.supabase.com"
+    host:     str = ""
     port:     int = 6543
-    database: str = "postgres"
-    user:     str = "postgres.rxeyzvnzfmylwbkiswoh"
-    password: str = "mnk-slnd-1981"
+    database: str = ""
+    user:     str = ""
+    password: str = ""
     chunk_size: int = 1000
     schema:   str = "public"
 
