@@ -2,7 +2,6 @@ name: LoL Pipeline → Supabase
 
 on:
   schedule:
-    # Каждую ночь в 03:00 UTC
     - cron: "0 3 * * *"
   workflow_dispatch:
     inputs:
@@ -19,18 +18,21 @@ on:
         required: false
         default: "20"
       depth:
-        description: "Глубина графа (осторожно: 2+ = много запросов)"
+        description: "Глубина графа"
         required: false
         default: "1"
-      pg_load:
-        description: "Загрузить в PostgreSQL? (true/false)"
+      skip_pg:
+        description: "Пропустить загрузку в PostgreSQL? (true/false)"
         required: false
-        default: "true"
+        default: "false"
 
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 360   # 6 часов максимум (Riot API медленный)
+    timeout-minutes: 360
+    # Если секрет добавлен в Environment — раскомментируй строку ниже
+    # и замени "production" на имя своего Environment в GitHub
+    # environment: production
 
     steps:
       - name: Checkout
@@ -45,9 +47,25 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # ── Кэш данных между запусками ──────────────────────────────────────
-      # Позволяет делать инкрементальные запуски: уже скачанные матчи
-      # не скачиваются повторно (дедупликация по match_id в extract/matches.py)
+      # ── Диагностика: проверяем что секрет доступен ──────────────────────
+      # Если видишь "RIOT_API_KEY: [NOT SET]" — секрет не передаётся в job
+      - name: Check secrets availability
+        env:
+          RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
+        run: |
+          if [ -z "$RIOT_API_KEY" ]; then
+            echo "RIOT_API_KEY: [NOT SET] — проверь настройки секрета в GitHub"
+            echo ""
+            echo "Возможные причины:"
+            echo "  1. Секрет добавлен в Environment, а не Repository"
+            echo "     → Settings → Secrets → Actions → Repository secrets"
+            echo "  2. Опечатка в названии секрета (чувствительно к регистру)"
+            echo "     → Должно быть ровно: RIOT_API_KEY"
+            exit 1
+          else
+            echo "RIOT_API_KEY: [SET, length=${#RIOT_API_KEY}]"
+          fi
+
       - name: Restore data cache
         uses: actions/cache@v4
         with:
@@ -57,7 +75,7 @@ jobs:
             lol-data-${{ github.ref_name }}-
             lol-data-
 
-      # ── Extract + Transform + Load (DuckDB) ─────────────────────────────
+      # ── ETL ──────────────────────────────────────────────────────────────
       - name: Run ETL pipeline
         env:
           RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
@@ -68,9 +86,9 @@ jobs:
             --matches "${{ github.event.inputs.matches || '20' }}" \
             --depth   "${{ github.event.inputs.depth   || '1' }}"
 
-      # ── Загрузка в Supabase PostgreSQL ──────────────────────────────────
-      - name: Load data to Supabase
-        if: ${{ github.event.inputs.pg_load != 'false' }}
+      # ── Загрузка в Supabase ──────────────────────────────────────────────
+      - name: Load to Supabase PostgreSQL
+        if: ${{ github.event.inputs.skip_pg != 'true' }}
         env:
           PG_HOST:     ${{ secrets.PG_HOST }}
           PG_PORT:     ${{ secrets.PG_PORT }}
@@ -78,12 +96,8 @@ jobs:
           PG_USER:     ${{ secrets.PG_USER }}
           PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
         run: |
-          python main.py \
-            --pg-load-only \
-            --pg-host     "${{ secrets.PG_HOST }}" \
-            --pg-password "${{ secrets.PG_PASSWORD }}"
+          python main.py --pg-load-only
 
-      # ── Кэш сохраняем всегда (даже при ошибке) ─────────────────────────
       - name: Save data cache
         if: always()
         uses: actions/cache@v4
@@ -91,8 +105,7 @@ jobs:
           path: data/
           key: lol-data-${{ github.ref_name }}-${{ runner.os }}
 
-      # ── Артефакты для отладки ────────────────────────────────────────────
-      - name: Upload run artifacts
+      - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
