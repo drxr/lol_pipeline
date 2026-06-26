@@ -32,28 +32,29 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class PgConfig:
-    host:     str = ""
-    port:     int = 6543
-    database: str = ""
-    user:     str = ""
-    password: str = ""
+    # Структурные дефолты — безопасно хранить в коде
+    port:       int = 6543
+    database:   str = "postgres"
     chunk_size: int = 1000
-    schema:   str = "public"
+    schema:     str = "public"
+
+    # Чувствительные данные
+    host:     str = field(default_factory=lambda: os.environ.get("PG_HOST", ""))
+    user:     str = field(default_factory=lambda: os.environ.get("PG_USER", ""))
+    password: str = field(default_factory=lambda: os.environ.get("PG_PASSWORD", ""))
 
     @classmethod
     def from_env(cls) -> "PgConfig":
-        
         """
-        Читает параметры из переменных окружения (приоритет над дефолтами).
-        Переменные: PG_HOST, PG_PORT, PG_DB, PG_USER, PG_PASSWORD.
+        Создаёт конфиг из переменных окружения.
+        host/user/password уже читаются из env через field(default_factory),
+        здесь дополнительно обрабатываем PG_PORT и PG_DB которые могут переопределять дефолты.
         """
-        
         cfg = cls()
-        cfg.host     = os.environ.get("PG_HOST",     cfg.host)
-        cfg.port     = int(os.environ.get("PG_PORT", cfg.port))
-        cfg.database = os.environ.get("PG_DB",       cfg.database)
-        cfg.user     = os.environ.get("PG_USER",     cfg.user)
-        cfg.password = os.environ.get("PG_PASSWORD", cfg.password)
+        if os.environ.get("PG_PORT"):
+            cfg.port = int(os.environ["PG_PORT"])
+        if os.environ.get("PG_DB"):
+            cfg.database = os.environ["PG_DB"]
         return cfg
 
     @property
