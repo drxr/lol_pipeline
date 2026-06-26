@@ -28,7 +28,6 @@ import pandas as pd
 
 log = logging.getLogger(__name__)
 
-# Параметры подключения
 
 @dataclass
 class PgConfig:
@@ -45,11 +44,13 @@ class PgConfig:
 
     @classmethod
     def from_env(cls) -> "PgConfig":
+        
         """
         Создаёт конфиг из переменных окружения.
         host/user/password уже читаются из env через field(default_factory),
         здесь дополнительно обрабатываем PG_PORT и PG_DB которые могут переопределять дефолты.
         """
+        
         cfg = cls()
         if os.environ.get("PG_PORT"):
             cfg.port = int(os.environ["PG_PORT"])
@@ -803,6 +804,7 @@ def _get_mart_sqls() -> dict[str, str]:
 # CLI
 
 def main():
+    
     import argparse, sys
 
     logging.basicConfig(
