@@ -267,7 +267,7 @@ def main():
         if args.pg_test:
             ok = loader.test_connection()
             if not ok:
-                import sys; sys.exit(1)
+                sys.exit(1)
         else:
             log.info("── POSTGRESQL LOAD ───────────────────────────────────────")
             loader.run(
