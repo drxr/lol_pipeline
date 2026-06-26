@@ -47,7 +47,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # ── Диагностика: проверяем что секрет доступен ──────────────────────
+      # Диагностика: проверяем что секрет доступен
       # Если видишь "RIOT_API_KEY: [NOT SET]" — секрет не передаётся в job
       - name: Check secrets availability
         env:
@@ -75,7 +75,7 @@ jobs:
             lol-data-${{ github.ref_name }}-
             lol-data-
 
-      # ── ETL ──────────────────────────────────────────────────────────────
+      # ETL
       - name: Run ETL pipeline
         env:
           RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
@@ -86,7 +86,7 @@ jobs:
             --matches "${{ github.event.inputs.matches || '20' }}" \
             --depth   "${{ github.event.inputs.depth   || '1' }}"
 
-      # ── Загрузка в Supabase ──────────────────────────────────────────────
+      # Загрузка в Supabase
       - name: Load to Supabase PostgreSQL
         if: ${{ github.event.inputs.skip_pg != 'true' }}
         env:
