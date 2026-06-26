@@ -22,9 +22,7 @@ from transform.players import transform_players
 from transform.static_data import transform_champions, transform_items
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # _resolve
-# ═══════════════════════════════════════════════════════════════════════════
 
 class TestResolve:
     PARTICIPANT = {
@@ -74,9 +72,7 @@ class TestResolve:
         assert _resolve(self.PARTICIPANT, self.INFO, self.MATCH_ID, "a.b.c.d") is None
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # transform_matches
-# ═══════════════════════════════════════════════════════════════════════════
 
 class TestTransformMatches:
 
@@ -132,7 +128,9 @@ class TestTransformMatches:
         assert dupes == 0, f"Найдено {dupes} дублей (match_id, puuid)"
 
     def test_deduplication_across_chunks(self, tmp_dirs, match_fields):
+      
         """Один матч в двух чанках — должна остаться одна запись на участника."""
+      
         import json
         from conftest import make_match_json
 
@@ -150,7 +148,9 @@ class TestTransformMatches:
         assert len(result) == 10, f"Ожидали 10 строк, получили {len(result)}"
 
     def test_corrupted_json_skipped(self, tmp_dirs, match_fields):
+      
         """Битый JSON должен пропускаться, остальные матчи обрабатываются."""
+      
         import json
         from conftest import make_match_json
 
@@ -186,7 +186,9 @@ class TestTransformMatches:
             "game_date должен быть datetime"
 
     def test_multiple_chunks_combined(self, tmp_dirs, match_fields):
+      
         """Два чанка с разными матчами объединяются корректно."""
+      
         import json
         from conftest import make_match_json
 
@@ -202,9 +204,7 @@ class TestTransformMatches:
         assert set(df["match_id"].unique()) == {"EUW1_A", "EUW1_B"}
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # transform_players
-# ═══════════════════════════════════════════════════════════════════════════
 
 class TestTransformPlayers:
 
@@ -238,7 +238,9 @@ class TestTransformPlayers:
         assert abs(float(row["winrate"]) - expected) < 0.001
 
     def test_service_columns_excluded(self, raw_players_parquet):
+      
         """Колонки вроде _raw_json не должны попасть в processed."""
+      
         dirs = raw_players_parquet["dirs"]
         # Добавим служебную колонку в raw
         df = pd.read_parquet(dirs["raw"] / "players" / "players.parquet")
@@ -269,9 +271,7 @@ class TestTransformPlayers:
         assert df.loc[df["puuid"] == "zero", "winrate"].isna().all()
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # transform_champions / transform_items
-# ═══════════════════════════════════════════════════════════════════════════
 
 class TestTransformStatic:
 
