@@ -31,7 +31,9 @@ log = logging.getLogger(__name__)
 
 
 class DataQualityError(Exception):
+  
     """Поднимается когда данные не прошли проверку качества."""
+  
     def __init__(self, report: "QualityReport"):
         self.report = report
         super().__init__(f"Data quality check failed: {report.errors}")
@@ -56,7 +58,7 @@ class QualityReport:
         return "\n".join(lines)
 
 
-# ── Конфигурация проверок по типу таблицы ────────────────────────────────
+# Конфигурация проверок по типу таблицы
 
 # Ключевые колонки: null выше порога — ошибка
 _NULL_THRESHOLD = 0.30   # 30%
@@ -101,6 +103,7 @@ _RANGE_CHECKS: dict[str, dict[str, tuple]] = {
 
 
 class DataQualityChecker:
+  
     """
     Запускает набор проверок качества данных и возвращает QualityReport.
 
