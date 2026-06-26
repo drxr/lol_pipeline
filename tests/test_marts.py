@@ -25,7 +25,7 @@ except ImportError:
 pytestmark = pytest.mark.skipif(not HAS_DUCKDB, reason="duckdb не установлен")
 
 
-# ── Хелпер: создать минимальный processed/matches.parquet ────────────────
+# Хелпер: создать минимальный processed/matches.parquet
 
 def _write_matches(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -81,9 +81,7 @@ def _write_items(path: Path) -> None:
     items.to_parquet(path, index=False)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # build_marts
-# ═══════════════════════════════════════════════════════════════════════════
 
 class TestBuildMarts:
     from load.duckdb_marts import build_marts
@@ -129,7 +127,9 @@ class TestBuildMarts:
         con.close()
 
     def test_winrate_range(self, tmp_dirs):
+      
         """winrate_pct должен быть в [0, 100]."""
+      
         con, _ = self._setup(tmp_dirs)
         df = con.execute("SELECT winrate_pct FROM mart_player_stats").df()
         assert (df["winrate_pct"] >= 0).all()
@@ -137,7 +137,9 @@ class TestBuildMarts:
         con.close()
 
     def test_winrate_formula(self, tmp_dirs):
+      
         """5 побед, 5 поражений на 5 матчей → ровно 50% для каждой позиции."""
+      
         con, _ = self._setup(tmp_dirs, n_matches=5, win_team_size=5)
         df = con.execute("SELECT winrate_pct FROM mart_position_stats").df()
         # У каждой позиции ровно половина матчей — win (5 матчей, 1 участник/позиция/матч)
@@ -151,7 +153,9 @@ class TestBuildMarts:
         con.close()
 
     def test_picks_count(self, tmp_dirs):
+      
         """Jinx и Thresh каждый встречается в 5 матчах × 5 участников = 25 пиков."""
+      
         con, _ = self._setup(tmp_dirs, n_matches=5)
         df = con.execute(
             "SELECT champion_name, SUM(picks) as total FROM mart_champion_stats GROUP BY champion_name"
@@ -175,7 +179,9 @@ class TestBuildMarts:
         con.close()
 
     def test_no_matches_parquet_skips(self, tmp_dirs):
+      
         """Без matches.parquet витрины не создаются, не крашится."""
+      
         from load.duckdb_marts import build_marts
         db_path = str(tmp_dirs["root"] / "empty.duckdb")
         build_marts(str(tmp_dirs["processed"]), db_path)
@@ -183,7 +189,9 @@ class TestBuildMarts:
         # (поведение зависит от реализации)
 
     def test_idempotent_rebuild(self, tmp_dirs):
+      
         """Два запуска подряд дают одинаковый результат."""
+      
         from load.duckdb_marts import build_marts
 
         all_rows = []
@@ -205,11 +213,10 @@ class TestBuildMarts:
         assert count1 == count2
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # DataQualityChecker
-# ═══════════════════════════════════════════════════════════════════════════
 
 class TestDataQuality:
+  
     """
     Тесты для модуля контроля качества данных.
     Проверяют что DataQualityChecker находит реальные проблемы.
