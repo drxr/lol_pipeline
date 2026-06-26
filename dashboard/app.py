@@ -16,7 +16,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-# ── Конфигурация страницы ──────────────────────────────────────────────────
+# Конфигурация страницы
 st.set_page_config(
     page_title="LoL Analytics",
     page_icon="⚔️",
@@ -24,7 +24,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ── Цветовая схема ─────────────────────────────────────────────────────────
+# Цветовая схема
 COLORS = {
     "bg":           "#0A0E1A",
     "surface":      "#111827",
@@ -64,12 +64,14 @@ PLOTLY_TEMPLATE = dict(
 _TPL_SKIP = {"legend", "margin", "font", "xaxis", "yaxis"}
 
 def _tpl(*also_skip: str) -> dict:
+    
     """Базовые параметры шаблона без конфликтующих ключей."""
+    
     skip = _TPL_SKIP | set(also_skip)
     return {k: v for k, v in PLOTLY_TEMPLATE["layout"].items() if k not in skip}
 
 
-# ── CSS ────────────────────────────────────────────────────────────────────
+# CSS
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Bebas+Neue&display=swap');
@@ -456,6 +458,7 @@ hr { border-color: #1E293B; margin: 1.5rem 0; }
 # ═══════════════════════════════════════════════════════════════════════════
 
 def load_data() -> dict[str, pd.DataFrame]:
+    
     """
     Пытается загрузить данные из DuckDB (data/lol.duckdb).
     Если БД нет — генерирует реалистичные демо-данные.
@@ -464,6 +467,7 @@ def load_data() -> dict[str, pd.DataFrame]:
     @st.cache_data, который вызывает inspect.getsource() и на некоторых
     сборках Python 3.13 падает с TokenError на длинных модулях.
     """
+    
     import time as _time
 
     cache_key = "_load_data_cache"
@@ -482,10 +486,12 @@ def load_data() -> dict[str, pd.DataFrame]:
 
 
 def _normalize_positions(data: dict) -> dict:
+    
     """
     Riot Match V5 API возвращает MIDDLE/UTILITY — нормализуем к MID/SUPPORT.
     Применяется ко всем таблицам с колонкой team_position.
     """
+    
     pos_map = {"MIDDLE": "MID", "UTILITY": "SUPPORT"}
     for key in ("champions", "positions", "player_champions", "players"):
         df = data.get(key)
@@ -498,6 +504,7 @@ def _normalize_positions(data: dict) -> dict:
 
 
 def _get_pg_config() -> dict | None:
+    
     """
     Читает параметры подключения к PostgreSQL из Streamlit secrets или переменных окружения.
     Возвращает dict с параметрами или None если ни один источник не настроен.
@@ -505,6 +512,7 @@ def _get_pg_config() -> dict | None:
     Streamlit Cloud: Settings → Secrets → вставить блок [postgres] из secrets.toml.
     Локально: .streamlit/secrets.toml или переменные окружения PG_HOST / PG_PASSWORD и т.д.
     """
+    
     import os
 
     # Сначала пробуем Streamlit secrets (Streamlit Cloud / локальный secrets.toml)
@@ -548,10 +556,12 @@ def _get_pg_config() -> dict | None:
 
 
 def _load_from_supabase(cfg: dict) -> dict[str, pd.DataFrame]:
+    
     """
     Читает витрины из PostgreSQL/Supabase через psycopg2.
     Используется как приоритетный источник на Streamlit Cloud.
     """
+    
     import psycopg2
     import psycopg2.extras
 
@@ -601,13 +611,15 @@ def _load_from_supabase(cfg: dict) -> dict[str, pd.DataFrame]:
 
 
 def _load_data_impl() -> dict[str, pd.DataFrame]:
+    
     """
     Приоритет источников данных:
       1. Supabase / PostgreSQL  — Streamlit Cloud + prod
       2. DuckDB локальный файл  — локальная разработка
       3. Демо-данные            — если ничего не настроено
     """
-    # ── 1. Supabase ───────────────────────────────────────────────────────
+    
+    # 1. Supabase
     cfg = _get_pg_config()
     if cfg:
         try:
@@ -628,7 +640,7 @@ def _load_data_impl() -> dict[str, pd.DataFrame]:
         except Exception as e:
             st.sidebar.warning(f"⚠️ PostgreSQL недоступен: {e}")
 
-    # ── 2. Локальный DuckDB ───────────────────────────────────────────────
+    # 2. Локальный DuckDB
     db_path = Path("data/lol.duckdb")
     if db_path.exists():
         try:
@@ -652,7 +664,7 @@ def _load_data_impl() -> dict[str, pd.DataFrame]:
             st.sidebar.warning(f"⚠️ DuckDB недоступен ({e}), используем демо-данные.")
 
 
-    # ── 3. Демо-данные ────────────────────────────────────────────────────
+    # 3. Демо-данные
     return _generate_demo_data()
 
 
@@ -782,7 +794,7 @@ def _generate_demo_data() -> dict[str, pd.DataFrame]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# HELPERS
+# УТИЛИТЫ
 # ═══════════════════════════════════════════════════════════════════════════
 
 def apply_template(fig: go.Figure, height: int = 320) -> go.Figure:
@@ -902,7 +914,9 @@ def generate_insights(data: dict) -> list[dict]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def chart_winrate_vs_kda(players: pd.DataFrame, selected: Optional[str] = None) -> go.Figure:
+    
     """Scatter: WR vs KDA — главный обзорный график."""
+    
     df = players.copy()
     df["color"] = df["winrate_pct"].apply(
         lambda w: COLORS["win"] if w >= 55 else (COLORS["loss"] if w <= 45 else COLORS["neutral"])
@@ -961,7 +975,9 @@ def chart_winrate_vs_kda(players: pd.DataFrame, selected: Optional[str] = None) 
 
 
 def chart_position_radar(positions: pd.DataFrame) -> go.Figure:
+    
     """Радар по позициям — нормализованные метрики."""
+    
     metrics    = ["winrate_pct", "avg_kills", "avg_damage", "avg_gold", "avg_vision"]
     metric_labels = ["Winrate", "Kills", "Damage", "Gold", "Vision"]
 
@@ -1008,7 +1024,9 @@ def chart_position_radar(positions: pd.DataFrame) -> go.Figure:
 
 
 def chart_timeline(timeline: pd.DataFrame, metric: str = "avg_damage") -> go.Figure:
+    
     """Временной ряд с трендом и аномалиями."""
+    
     df = timeline.copy()
     df["game_day"] = pd.to_datetime(df["game_day"])
 
@@ -1066,7 +1084,9 @@ def chart_timeline(timeline: pd.DataFrame, metric: str = "avg_damage") -> go.Fig
 
 def chart_champion_wr_bar(champions: pd.DataFrame, position: Optional[str] = None,
                            top_n: int = 15) -> go.Figure:
+                               
     """Горизонтальные бары: WR чемпионов с подсветкой выбросов."""
+                               
     df = champions.copy()
     if position:
         df = df[df["team_position"] == position]
@@ -1108,7 +1128,9 @@ def chart_champion_wr_bar(champions: pd.DataFrame, position: Optional[str] = Non
 
 
 def chart_items_scatter(items: pd.DataFrame) -> go.Figure:
+    
     """Scatter: популярность vs WR предметов."""
+    
     df = items.copy()
     df["color"] = df["winrate_pct"].apply(
         lambda w: COLORS["win"] if w >= 55 else (COLORS["loss"] if w <= 45 else COLORS["neutral"])
@@ -1147,7 +1169,9 @@ def chart_items_scatter(items: pd.DataFrame) -> go.Figure:
 
 
 def chart_player_combat(player: pd.Series) -> go.Figure:
+    
     """KDA / WR / Vision / CS — метрики одного масштаба."""
+    
     metrics = {
         "avg_kda":    "KDA",
         "winrate_pct":"WR %",
@@ -1186,7 +1210,9 @@ def chart_player_combat(player: pd.Series) -> go.Figure:
 
 
 def chart_player_economy(player: pd.Series) -> go.Figure:
+    
     """Damage / Gold — отдельная шкала."""
+    
     metrics = {"avg_damage": "Damage", "avg_gold": "Gold"}
     labels  = list(metrics.values())
     vals    = [float(player.get(m, 0)) for m in metrics]
@@ -1218,7 +1244,9 @@ def chart_player_economy(player: pd.Series) -> go.Figure:
 
 @st.fragment
 def _render_timeline(timeline: pd.DataFrame, key_suffix: str = "") -> None:
+    
     """Изолированный фрагмент: обновляется сам, не трогает остальной дашборд."""
+    
     metric_options = {
         "avg_damage":       "Avg Damage",
         "avg_duration_min": "Длительность матча (мин)",
@@ -1245,20 +1273,20 @@ def _render_timeline(timeline: pd.DataFrame, key_suffix: str = "") -> None:
     )
 
 
-
-
 # ═══════════════════════════════════════════════════════════════════════════
-# ANALYTICS ENGINE — превращаем данные в решения
+# АНАЛИТИЧЕСКИЙ ДВИЖОК — превращаем данные в решения
 # ═══════════════════════════════════════════════════════════════════════════
 #
-# Этот блок не рисует UI. Он считает: что аномально, что в мете, что
+# Этот блок не рисует UI. Он рассчитывает: что аномально, что в мете, что
 # рекомендовать игроку. Экраны ниже просто отображают результат этих функций.
 
 def detect_meta_tier(champions: pd.DataFrame) -> pd.DataFrame:
+    
     """
     Присваивает каждому герою уровень силы (S/A/B/C/D) по тому, как часто его выбирают
     и как часто с ним побеждают. Так видно, какие герои реально сильнее остальных.
     """
+    
     df = champions.copy()
     pick_p75 = df["picks"].quantile(0.75)
     pick_p50 = df["picks"].quantile(0.50)
@@ -1281,11 +1309,13 @@ def detect_meta_tier(champions: pd.DataFrame) -> pd.DataFrame:
 
 
 def detect_wr_anomalies(champions: pd.DataFrame, min_picks: int = 15) -> dict:
+    
     """
     Находит выбросы winrate — потенциально сломанных (бан-кандидаты)
     и потенциально слабых (требуют баланс-патча) чемпионов.
     Использует z-score относительно среднего и std по всей популяции.
     """
+    
     df = champions[champions["picks"] >= min_picks].copy()
     if df.empty or len(df) < 3:
         return {"overperforming": pd.DataFrame(), "underperforming": pd.DataFrame()}
@@ -1306,14 +1336,16 @@ def recommend_champions_for_player(
     champions: pd.DataFrame,
     top_n: int = 5,
 ) -> pd.DataFrame:
+    
     """
     Подбор чемпионов под стиль игрока.
 
     Логика: классифицируем стиль игрока по его средним статам
-    (агрессивный / фармер / támky-support / сбалансированный),
+    (агрессивный / фармер / tank-support / сбалансированный),
     затем ищем чемпионов той же позиции с хорошим WR, исключая
     то что игрок уже играет.
     """
+    
     position = player_row.get("main_position")
     pos_champs = champions[champions["team_position"] == position].copy()
     if pos_champs.empty:
@@ -1358,12 +1390,14 @@ def recommend_champions_for_player(
 
 
 def detect_player_outliers(players: pd.DataFrame) -> dict:
+    
     """
     Находит игроков-аномалий:
       - stat padders: высокий KDA, но низкий winrate (фармят статы, не побеждают)
       - underrated: низкий KDA, но высокий winrate (выигрывают командно, не фарм статов)
       - carries: высокий WR и высокий KDA одновременно — образцовые игроки
     """
+    
     df = players.copy()
     if len(df) < 4:
         return {"carries": pd.DataFrame(), "padders": pd.DataFrame(), "underrated": pd.DataFrame()}
@@ -1402,14 +1436,16 @@ def get_top_champions_for_player(
 
 
 def classify_player_style_from_champions(top_champs: pd.DataFrame) -> dict:
+    
     """
-    Определяет стиль игрока на основе того, КАКИХ чемпионов он реально играет
+    Определяет стиль игрока на основе того, каких чемпионов он реально выбирает
     (а не общих усреднённых статов). Это точнее, чем стиль по агрегату,
     потому что показывает осознанный выбор игрока, а не статистический шум.
 
     Логика: смотрим на теги/архетип самых играемых чемпионов через эвристику
     по их собственным средним статам (damage / vision / kda) внутри пула игрока.
     """
+    
     if top_champs.empty:
         return {"label": "Недостаточно данных", "description": "", "weights": {}}
 
@@ -1459,6 +1495,7 @@ def predict_team_winrate(
     champions_stats: pd.DataFrame,
     position_stats: pd.DataFrame,
 ) -> dict:
+    
     """
     Прогноз winrate команды из 5 выбранных чемпионов.
 
@@ -1470,6 +1507,7 @@ def predict_team_winrate(
 
     selected_champions: [{"position": "TOP", "champion_name": "Darius"}, ...]
     """
+    
     if not selected_champions or len(selected_champions) == 0:
         return {"predicted_wr": None, "breakdown": [], "synergy_note": ""}
 
@@ -1536,8 +1574,8 @@ def predict_team_winrate(
 
 
 def build_action_plan(data: dict) -> list[dict]:
+    
     """
-
     Главный вывод дашборда: 3-5 конкретных действий, а не "вот статистика".
     Приоритизированы по важности (impact).
     """
@@ -1623,7 +1661,6 @@ def build_action_plan(data: dict) -> list[dict]:
     return sorted(actions, key=lambda a: a["priority"])
 
 
-
 # ═══════════════════════════════════════════════════════════════════════════
 # ЭКРАН 1 — ACTION PLAN (главная страница: что делать прямо сейчас)
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1666,7 +1703,7 @@ def _screen_action_plan(data: dict) -> None:
 
     st.markdown("<div style='height:1.5rem'></div>", unsafe_allow_html=True)
 
-    # ── Главный вывод: план действий ────────────────────────────────────
+    # Главный вывод: план действий
     section("РЕКОМЕНДАЦИИ")
     if not actions:
         st.markdown(insight("OK", "", "Ничего необычного не обнаружено — игра в стабильном состоянии. "
@@ -1688,7 +1725,7 @@ def _screen_action_plan(data: dict) -> None:
 
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
 
-    # ── Контекст: главный график рядом с объяснением ────────────────────
+    # Контекст: главный график рядом с объяснением
     col_chart, col_explain = st.columns([3, 2])
     with col_chart:
         section("ЧАСТОТА ВЫБОРА × ПРОЦЕНТ ПОБЕД")
@@ -1765,7 +1802,7 @@ def _screen_meta(data: dict) -> None:
 
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
 
-    # ── Аномалии WR ──────────────────────────────────────────────────────
+    # Аномалии WR
     section("НЕОЖИДАННЫЕ РЕЗУЛЬТАТЫ")
     anomalies = detect_wr_anomalies(champions)
     over  = anomalies.get("overperforming", pd.DataFrame())
@@ -1905,7 +1942,7 @@ def _screen_player_coach(data: dict) -> None:
 
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
 
-    # ── Лидерборд аномалий игроков ──────────────────────────────────
+    # Лидерборд аномалий игроков
     section("СИЛЬНЫЕ И СЛАБЫЕ СТОРОНЫ ИГРОКОВ")
     outliers = detect_player_outliers(players)
 
@@ -2062,11 +2099,13 @@ def _screen_deep_dive(data: dict) -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ДОПОЛНИТЕЛЬНЫЕ ГРАФИКИ ДЛЯ НОВЫХ ЭКРАНОВ
+# ДОПОЛНИТЕЛЬНЫЕ ГРАФИКИ (2 новых вкладки)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def chart_meta_quadrant(tiered: pd.DataFrame) -> go.Figure:
+    
     """Квадрант пикрейт × winrate с подсветкой тиров — главный диагностический график."""
+    
     df = tiered[tiered["picks"] >= 8].copy()
     tier_colors = {"S": COLORS["win"], "A": "#3B82F6", "B": COLORS["neutral"],
                    "C": COLORS["highlight"], "D": COLORS["loss"]}
@@ -2106,7 +2145,9 @@ def chart_meta_quadrant(tiered: pd.DataFrame) -> go.Figure:
 
 
 def chart_tier_distribution(tiered: pd.DataFrame) -> go.Figure:
+    
     """Бар-чарт распределения чемпионов по тирам."""
+    
     tier_order  = ["S", "A", "B", "C", "D"]
     tier_colors = {"S": COLORS["win"], "A": "#3B82F6", "B": COLORS["neutral"],
                    "C": COLORS["highlight"], "D": COLORS["loss"]}
@@ -2127,9 +2168,8 @@ def chart_tier_distribution(tiered: pd.DataFrame) -> go.Figure:
     return fig
 
 
-
 # ═══════════════════════════════════════════════════════════════════════════
-# MAIN
+# ОСНОВНАЯ ФУНКЦИЯ
 # ═══════════════════════════════════════════════════════════════════════════
 
 def main():
